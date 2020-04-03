@@ -11,10 +11,8 @@ namespace KrankenhausTentamen.EventArguments
         public bool CancellationRequested { get; set; }
         public int PatientsInICU { get; set; }
         public int PatientsInSanatorium { get; set; }
+        public int PatientsMovedToSanatorium { get; set; }
+        public int PatientsMovedToICU { get; set; }
 
-        public PatientsSortedEventArgs(bool cancellationRequested = false)
-        {
-            this.CancellationRequested = cancellationRequested;
-        }
     }
 }

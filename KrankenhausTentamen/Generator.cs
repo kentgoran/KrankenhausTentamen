@@ -18,11 +18,37 @@ namespace KrankenhausTentamen
         }
 
         /// <summary>
+        /// Generates and adds 30 patients to the database
+        /// </summary>
+        public void AddNewPatientsToDatabase()
+        {
+            List<Patient> patients = GeneratePatients(30);
+            using (var hospitalContext = new HospitalContext())
+            {
+                hospitalContext.Patients.AddRange(patients);
+                hospitalContext.SaveChanges();
+            }
+        }
+
+        /// <summary>
+        /// Generates and adds 10 doctors to the database
+        /// </summary>
+        public void AddNewDoctorsToDatabase()
+        {
+            List<Doctor> doctors = GenerateDoctors(10);
+            using (var hospitalContext = new HospitalContext())
+            {
+                hospitalContext.Doctors.AddRange(doctors);
+                hospitalContext.SaveChanges();
+            }
+        }
+
+        /// <summary>
         /// Generates a number of patients, with name, symptom-levels and date of birth randomized
         /// </summary>
         /// <param name="numberOfPatients">the amount of patients to generate</param>
         /// <returns>a list of patients</returns>
-        public List<Patient> GeneratePatients(int numberOfPatients = 30)
+        private List<Patient> GeneratePatients(int numberOfPatients)
         {
             List<Patient> patients = new List<Patient>(); 
             for(int i=0; i< numberOfPatients; i++)
@@ -46,7 +72,7 @@ namespace KrankenhausTentamen
         /// </summary>
         /// <param name="numberOfDoctors">the number of doctors to return, default is 10</param>
         /// <returns>a List of doctors</returns>
-        public List<Doctor> GenerateDoctors(int numberOfDoctors = 10)
+        private List<Doctor> GenerateDoctors(int numberOfDoctors)
         {
             List<Doctor> doctors = new List<Doctor>();
             for(int i=0; i<numberOfDoctors; i++)
@@ -116,6 +142,7 @@ namespace KrankenhausTentamen
                 + " " + lastNames[rnd.Next(0, lastNames.Count - 1)];
             return fullName;
         }
+
         /// <summary>
         /// Fills the lists of names with actual names. Only put in a method to make it look cleaner
         /// </summary>
