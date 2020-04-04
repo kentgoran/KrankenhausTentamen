@@ -16,6 +16,7 @@ namespace KrankenhausTentamen
         public EventHandler<SimulationFinishedEventArgs> SimulationFinished;
         Random rnd = new Random();
         private bool runDoctorMovement = true;
+
         //These are for testing purposes
         private int fiveSeconds = 5000;
         private int threeSeconds = 3000;
@@ -41,7 +42,12 @@ namespace KrankenhausTentamen
             thread5.Start();
             thread6.Start();
 
+            //First, wait for thread4 to run to end, which will indicate the end
             thread4.Join();
+            //Then thread 2 and 3, so that they can print a last time before ending the simulation
+            thread2.Join();
+            thread3.Join();
+            //thread 6 needs to end before completed, if there are doctors left without patients
             if (thread6.IsAlive)
             {
                 runDoctorMovement = false;

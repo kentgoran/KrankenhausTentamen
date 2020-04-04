@@ -5,12 +5,19 @@ using System.Text;
 using System.Threading.Tasks;
 using KrankenhausTentamen.EventArguments;
 using KrankenhausTentamen.Enums;
+using System.IO;
 
 namespace KrankenhausTentamen
 {
     public class SimulationHelper
     {
         public TimeSpan TotalTimeSpent = new TimeSpan();
+        private string fileName = "EventPrint.txt";
+        private int timesToRun;
+        public SimulationHelper(int timesToRun = 10)
+        {
+            this.timesToRun = timesToRun;
+        }
         public void RunSimulation()
         {
             Simulator simulator = new Simulator();
@@ -18,12 +25,12 @@ namespace KrankenhausTentamen
             simulator.PatientsSorted += OnPatientsSorted;
             simulator.PatientsRecoveredOrDied += OnPatientsDyingOrRecovering;
             int counter = 0;
-            while(counter < 10)
+            while(counter < timesToRun)
             {
                 simulator.Start();
                 counter++;
             }
-            Console.WriteLine("All 10 simulations done. This took {0:0} seconds.", TotalTimeSpent.TotalSeconds);
+            PrintStatistics();
             Console.ReadLine();
         }
 
@@ -47,12 +54,29 @@ namespace KrankenhausTentamen
                     patients -= 1;
                 }
             }
-            TimeSpan averageTime = new TimeSpan(0);
-            //Remove chance of divideByZero-exception
-            if(patients != 0)
+
+            //Removes chance of divideByZero-exception, and sends back 0 as avg time spent
+            if(patients == 0)
             {
-                averageTime = new TimeSpan(totalTime / patients);
+                return new TimeSpan(0);
             }
+            TimeSpan averageTime = new TimeSpan(totalTime / patients);
+            return averageTime;
+        }
+
+        /// <summary>
+        /// Takes a list of TimeSpan and calculates the average timeSpan
+        /// </summary>
+        /// <param name="timeSpentInQueue"></param>
+        /// <returns>A TimeSpan containing average time from the list</returns>
+        private TimeSpan CalculateAverageTimeSpan(List<TimeSpan> timeSpentInQueue)
+        {
+            long totalTime = 0;
+            foreach (var timeSpent in timeSpentInQueue)
+            {
+                totalTime += timeSpent.Ticks;
+            }
+            TimeSpan averageTime = new TimeSpan(totalTime / timeSpentInQueue.Count);
             return averageTime;
         }
         /// <summary>
@@ -62,17 +86,26 @@ namespace KrankenhausTentamen
         /// <param name="args"></param>
         private void OnPatientsSorted(object sender, PatientsSortedEventArgs args)
         {
-            Console.WriteLine($"{args.PatientsMovedToICU} patients was moved to ICU, which now has {args.PatientsInICU} patients.");
-            Console.WriteLine($"{args.PatientsMovedToSanatorium} patients was moved to the Sanatorium, which now has {args.PatientsInSanatorium} patients.");
+            string toWrite = $"{args.PatientsMovedToICU} patients was moved to ICU, which now has {args.PatientsInICU} patients.\n" +
+                $"{args.PatientsMovedToSanatorium} patients was moved to the Sanatorium, which now has {args.PatientsInSanatorium} patients.\n";
+            lock (this)
+            {
+                File.AppendAllText(fileName, toWrite);
+            }
+            Console.Write(toWrite);
             if (args.PatientsInSanatorium == 0 && args.PatientsInICU == 0)
             {
                 args.CancellationRequested = true;
             }
-            //write to file
         }
         private void OnPatientsDyingOrRecovering(object sender, PatientsRecoveredOrDiedEventArgs args)
         {
-            Console.WriteLine($"{args.PatientsRecovered} just recovered and {args.PatientsDied} died.");
+            string toWrite = $"{args.PatientsRecovered} just recovered and {args.PatientsDied} died.\n";
+            lock (this)
+            {
+                File.AppendAllText(fileName, toWrite);
+            }
+            Console.Write(toWrite);
             if (args.PatientsLeft == 0)
             {
                 args.CancellationRequested = true;
@@ -112,9 +145,54 @@ namespace KrankenhausTentamen
                 hospitalContext.Database.ExecuteSqlCommand("TRUNCATE TABLE Doctors");
                 hospitalContext.SaveChanges();
             }
-            Console.WriteLine($"All patients has left the hospital. This simulation took {args.ExecutionTime.TotalSeconds:0} seconds.");
-            Console.WriteLine("---------------------------------------------");
+            string toWrite = $"All patients has left the hospital. This simulation took {args.ExecutionTime.TotalSeconds:0} seconds.\n" +
+                "---------------------------------------------\n\n";
+            File.AppendAllText(fileName, toWrite);
+            Console.Write(toWrite);
+            
+        }
 
+        /// <summary>
+        /// Prints statistics, averages etc to console and file
+        /// </summary>
+        private void PrintStatistics()
+        {
+
+            int totalRecovered = 0;
+            int totalDead = 0;
+            List<TimeSpan> timePerSimulation = new List<TimeSpan>();
+            List<TimeSpan> averageTimesInQueue = new List<TimeSpan>();
+
+            using (var hospitalContext = new HospitalContext())
+            {
+                var simulationData = (from simData in hospitalContext.SimulationData
+                                      orderby simData.SimulationDataId descending
+                                      select simData).Take(timesToRun).ToList();
+                foreach(var simData in simulationData)
+                {
+                    totalRecovered += simData.AmountOfRecoveredPatients;
+                    totalDead += simData.AmountOfDeadPatients;
+                    timePerSimulation.Add(simData.ExecutionTime);
+                    averageTimesInQueue.Add(simData.AverageTimeSpentInQueue);
+                }
+            }
+
+            double averageRecovered = (double)totalRecovered / (double)timesToRun;
+            double averageDead = (double)totalDead / (double)timesToRun;
+            TimeSpan averageSimulationTime = CalculateAverageTimeSpan(timePerSimulation);
+            TimeSpan averageTimeInQueue = CalculateAverageTimeSpan(averageTimesInQueue);
+            StringBuilder toWrite = new StringBuilder();
+            toWrite.AppendLine($"Simulation - {DateTime.Now}");
+            toWrite.AppendLine($"Average amount of recovered patients was {averageRecovered:0.0}.");
+            toWrite.AppendLine($"Average amount of patients that died was {averageDead:0.0}.");
+            toWrite.AppendLine($"Average time spent in queue was {averageTimeInQueue.TotalSeconds:0.00} seconds.");
+            toWrite.AppendLine($"Average time per simulation was {averageSimulationTime.TotalSeconds:0.00} seconds.");
+            toWrite.AppendLine($"Thanks for this run. Simulation finished after {TotalTimeSpent.TotalSeconds} seconds, totalling in {timesToRun} simulations.");
+            Console.Write(toWrite.ToString());
+            lock (this)
+            {
+                File.AppendAllText(fileName, toWrite.ToString());
+            }
         }
     }
 }

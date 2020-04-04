@@ -14,7 +14,7 @@ namespace KrankenhausTentamen
     {
         static void Main(string[] args)
         {
-            SimulationHelper simulationHelper = new SimulationHelper();
+            SimulationHelper simulationHelper = new SimulationHelper(100);
             simulationHelper.RunSimulation();
         }
 
