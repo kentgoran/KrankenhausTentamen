@@ -196,15 +196,18 @@ namespace KrankenhausTentamen
             TimeSpan averageTimeInQueue = CalculateAverageTimeSpan(averageTimesInQueue);
             StringBuilder toWrite = new StringBuilder();
             toWrite.AppendLine($"Simulation - {DateTime.Now}");
-            toWrite.AppendLine($"Average amount of recovered patients was {averageRecovered:0.0}.");
-            toWrite.AppendLine($"Average amount of patients that died was {averageDead:0.0}.");
-            toWrite.AppendLine($"Average time spent in queue was {averageTimeInQueue.TotalSeconds:0.00} seconds.");
-            toWrite.AppendLine($"Average time per simulation was {averageSimulationTime.TotalSeconds:0.00} seconds.");
-            toWrite.AppendLine($"Thanks for this run. Simulation finished after {TotalTimeSpent.TotalMinutes:0} minutes and {TotalTimeSpent.Seconds} seconds, totalling in {timesToRun} simulations.\n");
+            toWrite.AppendLine($"Recovered patients: {totalRecovered}");
+            toWrite.AppendLine($"Dead patients: {totalDead}");
+            toWrite.AppendLine($"Average amount of recovered patients: {averageRecovered:0.0}.");
+            toWrite.AppendLine($"Average amount of patients that died: {averageDead:0.0}.");
+            toWrite.AppendLine($"Average time spent in queue: {averageTimeInQueue.TotalSeconds:0.00} seconds.");
+            toWrite.AppendLine($"Average time per simulation: {averageSimulationTime.TotalSeconds:0.00} seconds.");
+            toWrite.AppendLine($"Simulation finished after {TotalTimeSpent.TotalMinutes:0} minutes and {TotalTimeSpent.Seconds} seconds, totalling in {timesToRun} simulations.\n");
+            toWrite.AppendLine("--------------------------------------------------------------------------------");
             Console.Write(toWrite.ToString());
             lock (this)
             {
-                File.AppendAllText(fileName, toWrite.ToString());
+                File.AppendAllText("SimulationStats.txt", toWrite.ToString());
             }
         }
     }
