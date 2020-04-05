@@ -13,6 +13,7 @@ namespace KrankenhausTentamen
         public int SymptomLevel { get; set; }
         public DateTime ArrivalTime { get; set; }
         public TimeSpan? TimeSpentInQueue { get; set; }
+        //if the status of the patient is Queue, and the added value is not, then set the time spent in queue automatically
         public PatientStatus Status
         {
             get

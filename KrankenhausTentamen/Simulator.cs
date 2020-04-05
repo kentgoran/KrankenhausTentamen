@@ -16,10 +16,8 @@ namespace KrankenhausTentamen
         public EventHandler<SimulationFinishedEventArgs> SimulationFinished;
         Random rnd = new Random();
         private bool runDoctorMovement = true;
-
-        //These are for testing purposes
-        private int fiveSeconds = 5000;
-        private int threeSeconds = 3000;
+        private int maxICU = 5;
+        private int maxSanatorium = 10;
 
         /// <summary>
         /// Starts one run of Simulation. Throws SimulationFinished-event when finished
@@ -34,12 +32,15 @@ namespace KrankenhausTentamen
             Thread thread4 = new Thread(SimulatePatientRecoveringOrDying);
             Thread thread5 = new Thread(generator.AddNewDoctorsToDatabase);
             Thread thread6 = new Thread(SimulateDoctorMovement);
-
+            //Thread-prio for the threads creating patient and doctor-data
+            thread1.Priority = ThreadPriority.Highest;
+            thread5.Priority = ThreadPriority.Highest;
             thread1.Start();
+            thread5.Start();
+
             thread2.Start();
             thread3.Start();
             thread4.Start();
-            thread5.Start();
             thread6.Start();
 
             //First, wait for thread4 to run to end, which will indicate the end
@@ -66,29 +67,28 @@ namespace KrankenhausTentamen
         /// </summary>
         public void SimulatePatientSorting()
         {
-            //Wait 1 second in order for patients and doctors to have been generated before starting
-            //Thread.Sleep(1000);
             PatientsSortedEventArgs args = new PatientsSortedEventArgs();
             while (!args.CancellationRequested)
             {
+                //Reset the args values
                 args.PatientsMovedToSanatorium = 0;
                 args.PatientsMovedToICU = 0;
-                Thread.Sleep(fiveSeconds);
+                
+                Thread.Sleep(5000);
                 using (var hospitalContext = new HospitalContext())
                 {
-
                     var patientsInICU = (from patient in hospitalContext.Patients
                                          where patient.Status == PatientStatus.ICU
                                          select patient).ToList();
                     args.PatientsInICU = patientsInICU.Count;
 
                     //Check if ICU is full, otherwise, fill it
-                    if (patientsInICU.Count < 5)
+                    if (patientsInICU.Count < maxICU)
                     {
                         var patientsToMove = (from patient in hospitalContext.Patients
                                               where patient.Status == PatientStatus.Queue || patient.Status == PatientStatus.Sanatorium
                                               orderby patient.SymptomLevel descending, patient.BirthDate ascending
-                                              select patient).Take(5 - patientsInICU.Count).ToList();
+                                              select patient).Take(maxICU - patientsInICU.Count).ToList();
                         //Change status of the patients provided, to ICU
                         for (int i = 0; i < patientsToMove.Count; i++)
                         {
@@ -106,12 +106,12 @@ namespace KrankenhausTentamen
                     args.PatientsInSanatorium = patientsInSanatorium.Count;
 
                     //Check if Sanatorium is full, otherwise, fill it
-                    if (patientsInSanatorium.Count < 10)
+                    if (patientsInSanatorium.Count < maxSanatorium)
                     {
                         var patientsToMove = (from patient in hospitalContext.Patients
                                               where patient.Status == PatientStatus.Queue
                                               orderby patient.SymptomLevel descending, patient.BirthDate ascending
-                                              select patient).Take(10 - patientsInSanatorium.Count).ToList();
+                                              select patient).Take(maxSanatorium - patientsInSanatorium.Count).ToList();
                         //Change status of the patients provided, to Sanatorium
                         for (int i = 0; i < patientsToMove.Count; i++)
                         {
@@ -136,12 +136,10 @@ namespace KrankenhausTentamen
         /// </summary>
         public void SimulateSymptomsChanging()
         {
-            //Wait 1 second in order for patients and doctors to have been generated before starting
-            //Thread.Sleep(1000);
             bool patientsPresent = true;
             while (patientsPresent)
             {
-                Thread.Sleep(threeSeconds);
+                Thread.Sleep(3000);
                 using (var hospitalContext = new HospitalContext())
                 {
                     var currentPatients = (from patient in hospitalContext.Patients
@@ -202,12 +200,11 @@ namespace KrankenhausTentamen
         /// </summary>
         public void SimulatePatientRecoveringOrDying()
         {
-            //Wait 1 second in order for patients and doctors to have been generated before starting
-            //Thread.Sleep(1000);
             PatientsRecoveredOrDiedEventArgs args = new PatientsRecoveredOrDiedEventArgs();
             while (!args.CancellationRequested)
             {
-                Thread.Sleep(fiveSeconds);
+                Thread.Sleep(5000);
+                //Reset args-values
                 args.PatientsRecovered = 0;
                 args.PatientsDied = 0;
                 args.PatientsLeft = 0;
@@ -223,7 +220,7 @@ namespace KrankenhausTentamen
                             patients[i].Status = PatientStatus.Recovered;
                             args.PatientsRecovered += 1;
                         }
-                        else if(patients[i].SymptomLevel >= 10)
+                        else if(patients[i].SymptomLevel > 9)
                         {
                             patients[i].Status = PatientStatus.Afterlife;
                             args.PatientsDied += 1;
@@ -247,7 +244,7 @@ namespace KrankenhausTentamen
         {
             while (runDoctorMovement)
             {
-                Thread.Sleep(fiveSeconds);
+                Thread.Sleep(5000);
                 using (var hospitalContext = new HospitalContext())
                 {
                     var doctors = (from doctor in hospitalContext.Doctors
@@ -279,7 +276,7 @@ namespace KrankenhausTentamen
                                             where doctor.Energy > 0
                                             orderby doctor.Skill descending
                                             select doctor).FirstOrDefault();
-                        //Check so that there really was a doctor to add
+                        //Check so that there was a doctor to add
                         if(newICUDoctor != null)
                         {
                             //If the doctor to put in ICU is the sanatorium-doctor, set boolean for sanatoriumDoc to false
@@ -291,19 +288,20 @@ namespace KrankenhausTentamen
                             doctorICUPresent = true;
                         }
                     }
+                    //if there is no Sanatorium-doctor, assign the worst one with energy left
                     if (!doctorSanatoriumPresent)
                     {
                         var newSanatoriumDoctor = (from doctor in hospitalContext.Doctors
                                             where doctor.Energy > 0
                                             orderby doctor.Skill ascending
                                             select doctor).FirstOrDefault();
-                        //Check so that there really was a doctor to add
-                        if (newSanatoriumDoctor != null)
+                        //Check so that there was a doctor to add, and that the doctor isn't assigned to ICU
+                        //If assigned to ICU, that is the last doctor and there is no other to add, so do nothing
+                        if (newSanatoriumDoctor != null && newSanatoriumDoctor.Assignment != DoctorAssignment.ICU)
                         {
                             newSanatoriumDoctor.Assignment = DoctorAssignment.Sanatorium;
                             doctorICUPresent = true;
-                        }
-                        
+                        }  
                     }
                     hospitalContext.SaveChanges();
 
@@ -402,7 +400,7 @@ namespace KrankenhausTentamen
         /// <returns>either 0 or -1</returns>
         private int DoctorLowerSymptoms(int doctorSkill)
         {
-            if(doctorSkill > rnd.Next(0, 100))
+            if(doctorSkill >= rnd.Next(0, 100))
             {
                 return -1;
             }

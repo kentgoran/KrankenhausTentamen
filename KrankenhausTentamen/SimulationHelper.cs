@@ -11,26 +11,34 @@ namespace KrankenhausTentamen
 {
     public class SimulationHelper
     {
-        public TimeSpan TotalTimeSpent = new TimeSpan();
+        private TimeSpan TotalTimeSpent = new TimeSpan();
+        private DateTime startTime;
         private string fileName = "EventPrint.txt";
         private int timesToRun;
-        public SimulationHelper(int timesToRun = 10)
+        public SimulationHelper(int timesToRun = 1)
         {
             this.timesToRun = timesToRun;
         }
+
+        /// <summary>
+        /// Starts the simulations, and runs them "timesToRun" amount of times
+        /// </summary>
         public void RunSimulation()
         {
             Simulator simulator = new Simulator();
             simulator.SimulationFinished += OnSimulationFinished;
             simulator.PatientsSorted += OnPatientsSorted;
             simulator.PatientsRecoveredOrDied += OnPatientsDyingOrRecovering;
-            int counter = 0;
-            while(counter < timesToRun)
+            int counter = 1;
+            startTime = DateTime.Now;
+            while(counter <= timesToRun)
             {
+                Console.WriteLine($"Running simulation number {counter}.");
                 simulator.Start();
                 counter++;
             }
-            PrintStatistics();
+            TotalTimeSpent = DateTime.Now - startTime;
+            LogStatistics();
             Console.ReadLine();
         }
 
@@ -79,8 +87,9 @@ namespace KrankenhausTentamen
             TimeSpan averageTime = new TimeSpan(totalTime / timeSpentInQueue.Count);
             return averageTime;
         }
+
         /// <summary>
-        /// To be tied to PatientsSorted 
+        /// To be tied to PatientsSorted. Prints changes to console and to file "fileName". Also 'ticks' the cancellation-token if there are no patients present
         /// </summary>
         /// <param name="sender"></param>
         /// <param name="args"></param>
@@ -98,6 +107,12 @@ namespace KrankenhausTentamen
                 args.CancellationRequested = true;
             }
         }
+
+        /// <summary>
+        /// To be tied to PatientsRecoveringOrDying. Logs event-changes. also checks if there are any patients left. if not, 'ticks' the cancellationToken
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="args"></param>
         private void OnPatientsDyingOrRecovering(object sender, PatientsRecoveredOrDiedEventArgs args)
         {
             string toWrite = $"{args.PatientsRecovered} just recovered and {args.PatientsDied} died.\n";
@@ -113,7 +128,7 @@ namespace KrankenhausTentamen
         }
 
         /// <summary>
-        /// To be connected to SimulationFinished-Event. Extracts data and sends it to the database
+        /// To be connected to SimulationFinished-Event. Extracts data and logs it in the database
         /// </summary>
         /// <param name="sender"></param>
         /// <param name="args"></param>
@@ -121,7 +136,6 @@ namespace KrankenhausTentamen
         {
             SimulationData simulationData = new SimulationData();
             simulationData.ExecutionTime = args.ExecutionTime;
-            TotalTimeSpent += args.ExecutionTime;
             using (var hospitalContext = new HospitalContext())
             {
                 var deadPatients = (from patient in hospitalContext.Patients
@@ -153,9 +167,9 @@ namespace KrankenhausTentamen
         }
 
         /// <summary>
-        /// Prints statistics, averages etc to console and file
+        /// Logs statistics, averages etc to console and file
         /// </summary>
-        private void PrintStatistics()
+        private void LogStatistics()
         {
 
             int totalRecovered = 0;
@@ -187,7 +201,7 @@ namespace KrankenhausTentamen
             toWrite.AppendLine($"Average amount of patients that died was {averageDead:0.0}.");
             toWrite.AppendLine($"Average time spent in queue was {averageTimeInQueue.TotalSeconds:0.00} seconds.");
             toWrite.AppendLine($"Average time per simulation was {averageSimulationTime.TotalSeconds:0.00} seconds.");
-            toWrite.AppendLine($"Thanks for this run. Simulation finished after {TotalTimeSpent.TotalSeconds} seconds, totalling in {timesToRun} simulations.");
+            toWrite.AppendLine($"Thanks for this run. Simulation finished after {TotalTimeSpent.TotalMinutes:0} minutes and {TotalTimeSpent.Seconds} seconds, totalling in {timesToRun} simulations.\n");
             Console.Write(toWrite.ToString());
             lock (this)
             {
